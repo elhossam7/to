@@ -7,7 +7,7 @@ from backend.pipeline.validator import validate_profile
 
 def test_validate_profile_generates_missing_id(tmp_path: Path) -> None:
     path = tmp_path / "source.txt"
-    profile, warnings = validate_profile({"name": "Ada Lovelace"}, path, ["Ada Lovelace"])
+    profile, warnings = validate_profile({"personal": {"first_name": "Ada"}}, path, ["Ada Lovelace"])
 
     assert profile["id"].startswith("file-")
     assert "missing_identity_generated" in warnings

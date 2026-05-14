@@ -8,6 +8,7 @@ from backend.broadcaster import Broadcaster
 from backend.pipeline.ollama import call_ollama
 from backend.pipeline.parser import read_lines
 from backend.pipeline.jobs import ProcessingJob
+from backend.pipeline.schema import normalize_profile
 from backend.pipeline.validator import validate_profile
 from backend.storage import append_audit, load_profile, save_profile, utc_now
 
@@ -43,7 +44,8 @@ def _merge_value(old: Any, new: Any) -> Any:
 def _merge_profile(existing: Dict[str, Any] | None, profile: Dict[str, Any]) -> Dict[str, Any]:
     if existing is None:
         return profile
-    merged = _merge_value(existing, profile)
+    existing_schema = normalize_profile(existing)
+    merged = _merge_value(existing_schema, profile)
     if isinstance(merged, dict):
         merged["id"] = profile["id"]
         merged["_id_strategy"] = profile.get("_id_strategy", existing.get("_id_strategy"))

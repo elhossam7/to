@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
+from backend.pipeline.schema import has_visible_data, normalize_profile
+
 
 _safe_name_re = re.compile(r"[^a-zA-Z0-9_.-]+")
 
@@ -72,8 +74,8 @@ def validate_profile(data: Any, path: Path, lines: List[str]) -> Tuple[Dict[str,
         raise ValueError("Ollama response must be a JSON object")
 
     warnings: List[str] = []
-    profile = dict(data)
-    supplied_id = profile.get("id")
+    supplied_id = data.get("id")
+    profile = normalize_profile(data)
     if isinstance(supplied_id, (str, int)) and str(supplied_id).strip():
         profile["id"] = str(supplied_id).strip()
         profile["_id_strategy"] = "model_id"
@@ -84,8 +86,7 @@ def validate_profile(data: Any, path: Path, lines: List[str]) -> Tuple[Dict[str,
         if strategy == "fallback":
             warnings.append("missing_identity_generated")
 
-    non_meta_fields = [key for key in profile.keys() if key not in {"id", "_id_strategy", "_source", "_warnings"}]
-    if not non_meta_fields:
+    if not has_visible_data({key: value for key, value in profile.items() if not key.startswith("_") and key != "id"}):
         raise ValueError("profile must include at least one data field besides id")
 
     if warnings:
