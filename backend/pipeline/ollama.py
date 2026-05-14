@@ -2,21 +2,24 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Sequence, Tuple
 
 import httpx
 
 from backend.settings import settings
 
 
-def build_prompt(lines: List[str]) -> str:
-    raw_lines = "\n".join(f"{index + 1}. {line}" for index, line in enumerate(lines))
+def build_prompt(documents: Sequence[Tuple[str, List[str]]]) -> str:
+    blocks = []
+    for filename, lines in documents:
+        raw_lines = "\n".join(f"{index + 1}. {line}" for index, line in enumerate(lines))
+        blocks.append(f"DOCUMENT: {filename}\n{raw_lines}")
+    raw_documents = "\n\n---\n\n".join(blocks)
     return (
-        "You are a data extraction engine. Return only one valid JSON object and no markdown.\n\n"
         f"Extraction rules:\n{settings.extraction_rules}\n\n"
-        "Raw text lines:\n"
-        f"{raw_lines}\n\n"
-        "Return a compact JSON object. Use an id from the source when one is clearly present."
+        "Source document text follows. Treat all provided documents as evidence for the same person "
+        "and return one JSON object only.\n\n"
+        f"{raw_documents}"
     )
 
 
@@ -40,9 +43,15 @@ def _extract_json(text: str) -> Dict[str, Any]:
     return parsed
 
 
-async def call_ollama(lines: List[str]) -> Dict[str, Any]:
-    prompt = build_prompt(lines)
-    payload = {"model": settings.ollama_model, "prompt": prompt, "stream": False, "format": "json"}
+async def call_ollama(documents: Sequence[Tuple[str, List[str]]]) -> Dict[str, Any]:
+    prompt = build_prompt(documents)
+    payload = {
+        "model": settings.ollama_model,
+        "prompt": prompt,
+        "stream": False,
+        "format": "json",
+        "options": {"temperature": 0, "num_predict": settings.ollama_num_predict},
+    }
     last_error: Exception | None = None
 
     for attempt in range(settings.max_retries + 1):

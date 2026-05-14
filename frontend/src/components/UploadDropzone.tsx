@@ -1,6 +1,6 @@
 import { ChangeEvent, DragEvent, useState } from "react";
 import { FileUp, Loader2 } from "lucide-react";
-import { uploadFile } from "../lib/api";
+import { uploadFiles } from "../lib/api";
 
 type Props = {
   onUploaded: () => void;
@@ -19,10 +19,8 @@ export function UploadDropzone({ onUploaded }: Props) {
 
     setBusy(true);
     try {
-      for (const file of txtFiles) {
-        await uploadFile(file);
-      }
-      setMessage(`${txtFiles.length} file${txtFiles.length === 1 ? "" : "s"} queued`);
+      await uploadFiles(txtFiles);
+      setMessage(`${txtFiles.length} file${txtFiles.length === 1 ? "" : "s"} queued as one profile`);
       onUploaded();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Upload failed");

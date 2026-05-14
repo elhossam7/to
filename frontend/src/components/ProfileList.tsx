@@ -8,11 +8,15 @@ type Props = {
 };
 
 function label(profile: Profile) {
-  return String(profile.name || profile.full_name || profile.id);
+  return String(profile.personal?.full_name || profile.name || profile.full_name || profile.id);
 }
 
 function secondary(profile: Profile) {
-  return String(profile.email || profile.phone || profile.location || profile._source?.filename || "No contact field");
+  const email = profile.contact?.emails?.find((item) => item.address)?.address;
+  const phone = profile.contact?.phones?.find((item) => item.number)?.number;
+  const city = profile.address?.city;
+  const fileCount = profile._source?.files?.length;
+  return String(email || phone || city || (fileCount ? `${fileCount} source files` : profile._source?.filename) || "No contact field");
 }
 
 export function ProfileList({ profiles, selectedId, onSelect }: Props) {

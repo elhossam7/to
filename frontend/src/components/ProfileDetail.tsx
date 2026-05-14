@@ -5,7 +5,18 @@ type Props = {
   profile: Profile | null;
 };
 
-const hiddenKeys = new Set(["id", "name", "full_name", "_source", "_warnings"]);
+const hiddenKeys = new Set(["id", "name", "full_name", "_id_strategy", "_source", "_warnings"]);
+
+function profileTitle(profile: Profile) {
+  return String(profile.personal?.full_name || profile.name || profile.full_name || profile.id);
+}
+
+function sourceLabel(profile: Profile) {
+  if (profile._source?.files?.length) {
+    return profile._source.files.map((file) => file.filename).filter(Boolean).join(", ");
+  }
+  return profile._source?.filename ?? "unknown source";
+}
 
 export function ProfileDetail({ profile }: Props) {
   if (!profile) {
@@ -18,7 +29,7 @@ export function ProfileDetail({ profile }: Props) {
   }
 
   const fields = Object.entries(profile).filter(([key]) => !hiddenKeys.has(key));
-  const title = String(profile.name || profile.full_name || profile.id);
+  const title = profileTitle(profile);
 
   return (
     <section className="panel profile-detail">
@@ -33,7 +44,7 @@ export function ProfileDetail({ profile }: Props) {
       <div className="meta-grid">
         <div>
           <FileText size={18} />
-          <span>{profile._source?.filename ?? "unknown source"}</span>
+          <span>{sourceLabel(profile)}</span>
         </div>
         <div>
           <CalendarClock size={18} />

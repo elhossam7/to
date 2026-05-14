@@ -5,7 +5,7 @@ A local full-stack app for turning messy `.txt` people-profile files into struct
 ## What It Does
 
 - Watches `./data/inbox` for `.txt` files.
-- Accepts `.txt` uploads from the React UI.
+- Accepts single or multi-file `.txt` uploads from the React UI.
 - Parses with minimal assumptions: trim lines and drop only empty lines.
 - Sends raw lines to Ollama for context-aware profile extraction.
 - Saves structured JSON profiles into `./data/profiles`.
@@ -55,7 +55,8 @@ Deployment assets live in `deploy/`:
 
 ## API
 
-- `POST /ingest` uploads and queues a `.txt` file.
+- `POST /ingest` uploads and queues one `.txt` file.
+- `POST /ingest-batch` uploads multiple `.txt` files and extracts one combined profile.
 - `GET /profiles` lists saved profiles.
 - `GET /profiles/{id}` loads one profile.
 - `GET /events` streams pipeline updates.

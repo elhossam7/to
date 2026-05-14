@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     ollama_url: str = Field(default="http://localhost:11434/api/generate", alias="OLLAMA_URL")
     ollama_model: str = Field(default="llama3.1", alias="OLLAMA_MODEL")
     ollama_timeout: float = Field(default=45.0, alias="OLLAMA_TIMEOUT")
+    ollama_num_predict: int = Field(default=1500, alias="OLLAMA_NUM_PREDICT")
     max_retries: int = Field(default=2, alias="MAX_RETRIES")
     max_file_size: int = Field(default=1_000_000, alias="MAX_FILE_SIZE")
     cors_origin: str = Field(default="http://localhost:5173", alias="CORS_ORIGIN")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
@@ -13,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from watchdog.observers import Observer
 
 from backend.broadcaster import Broadcaster
+from backend.pipeline.jobs import ProcessingJob
 from backend.pipeline.ollama import check_ollama
 from backend.pipeline.worker import run_worker
 from backend.settings import settings
@@ -21,7 +23,7 @@ from backend.watcher import InboxHandler
 
 
 class AppState:
-    queue: asyncio.Queue[Path]
+    queue: asyncio.Queue[ProcessingJob]
     broadcaster: Broadcaster
     stop_event: asyncio.Event
     worker_task: asyncio.Task[None]
@@ -85,11 +87,43 @@ async def status() -> dict:
 
 @app.post("/ingest")
 async def ingest(file: UploadFile = File(...)) -> dict:
+    path = _save_upload(file, batch_id=uuid.uuid4().hex[:10])
+    job = ProcessingJob(paths=[path], source="upload", batch_id=path.stem)
+    await state.queue.put(job)
+    event = {"type": "queued", "path": str(path), "filename": path.name, "batch_id": job.batch_id, "ts": utc_now()}
+    append_audit({"event": "queued", "path": str(path), "batch_id": job.batch_id, "source": "upload"})
+    await state.broadcaster.broadcast(event)
+    return {"accepted": True, "filename": path.name, "path": str(path), "batch_id": job.batch_id}
+
+
+@app.post("/ingest-batch")
+async def ingest_batch(files: list[UploadFile] = File(...)) -> dict:
+    if not files:
+        raise HTTPException(status_code=400, detail="At least one .txt file is required")
+
+    batch_id = uuid.uuid4().hex[:10]
+    paths = [_save_upload(file, batch_id=batch_id) for file in files]
+    job = ProcessingJob(paths=paths, source="upload_batch", batch_id=batch_id)
+    await state.queue.put(job)
+    event = {
+        "type": "queued",
+        "path": str(paths[0]),
+        "filename": job.label,
+        "filenames": [path.name for path in paths],
+        "batch_id": batch_id,
+        "ts": utc_now(),
+    }
+    append_audit({"event": "queued", "paths": [str(path) for path in paths], "batch_id": batch_id, "source": "upload_batch"})
+    await state.broadcaster.broadcast(event)
+    return {"accepted": True, "filenames": [path.name for path in paths], "paths": [str(path) for path in paths], "batch_id": batch_id}
+
+
+def _save_upload(file: UploadFile, batch_id: str) -> Path:
     if not file.filename or not file.filename.lower().endswith(".txt"):
         raise HTTPException(status_code=400, detail="Only .txt files are accepted")
 
     settings.ensure_dirs()
-    target_name = safe_id(Path(file.filename).stem) + ".txt"
+    target_name = f"{batch_id}-{safe_id(Path(file.filename).stem)}.txt"
     target = settings.inbox_dir / target_name
     temp_target = settings.inbox_dir / f".{target_name}.uploading"
     with temp_target.open("wb") as handle:
@@ -100,11 +134,7 @@ async def ingest(file: UploadFile = File(...)) -> dict:
         raise HTTPException(status_code=413, detail=f"File exceeds {settings.max_file_size} bytes")
 
     temp_target.replace(target)
-    await state.queue.put(target)
-    event = {"type": "queued", "path": str(target), "filename": target.name, "ts": utc_now()}
-    append_audit({"event": "queued", "path": str(target), "source": "upload"})
-    await state.broadcaster.broadcast(event)
-    return {"accepted": True, "filename": target.name, "path": str(target)}
+    return target
 
 
 @app.get("/profiles")

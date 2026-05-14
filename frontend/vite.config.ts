@@ -9,7 +9,8 @@ export default defineConfig({
       "/events": "http://127.0.0.1:8000",
       "/profiles": "http://127.0.0.1:8000",
       "/status": "http://127.0.0.1:8000",
-      "/ingest": "http://127.0.0.1:8000"
+      "/ingest": "http://127.0.0.1:8000",
+      "/ingest-batch": "http://127.0.0.1:8000"
     }
   }
 });

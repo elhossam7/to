@@ -16,10 +16,12 @@ export async function fetchStatus(): Promise<Status> {
   return response.json();
 }
 
-export async function uploadFile(file: File): Promise<void> {
+export async function uploadFiles(files: File[]): Promise<void> {
   const form = new FormData();
-  form.append("file", file);
-  const response = await fetch("/ingest", { method: "POST", body: form });
+  for (const file of files) {
+    form.append("files", file);
+  }
+  const response = await fetch("/ingest-batch", { method: "POST", body: form });
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `Upload failed: ${response.status}`);

@@ -164,14 +164,14 @@ http://127.0.0.1:8080
 
 ## 12. End-To-End Check
 
-Upload a `.txt` profile in the UI, then verify on the VM:
+Upload one or more `.txt` files for the same person in the UI, then verify on the VM:
 
 ```bash
 ls -la /data/profiles
 tail -n 20 /data/audit.log
 ```
 
-You should see queued, started, and done events in the UI and a JSON profile under `/data/profiles`.
+You should see queued, started, and done events in the UI and one JSON profile under `/data/profiles` for the upload batch.
 
 ## Update Procedure
 
