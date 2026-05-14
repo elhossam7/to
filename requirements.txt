@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+watchdog
+httpx
+jsonschema
+python-dotenv
+pydantic-settings
+python-multipart
+pytest
+pytest-asyncio

@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import List
+
+from dotenv import load_dotenv
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+load_dotenv()
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    app_name: str = "Profile Extraction Console"
+    data_dir: Path = Field(default=Path("data"), alias="DATA_DIR")
+    ollama_url: str = Field(default="http://localhost:11434/api/generate", alias="OLLAMA_URL")
+    ollama_model: str = Field(default="llama3.1", alias="OLLAMA_MODEL")
+    ollama_timeout: float = Field(default=45.0, alias="OLLAMA_TIMEOUT")
+    max_retries: int = Field(default=2, alias="MAX_RETRIES")
+    max_file_size: int = Field(default=1_000_000, alias="MAX_FILE_SIZE")
+    cors_origin: str = Field(default="http://localhost:5173", alias="CORS_ORIGIN")
+    extraction_rules: str = Field(
+        default=(
+            "Extract a people profile from the raw text. Return JSON only. Include id when present, "
+            "name, contact details, location, notes, and any other useful fields inferred from context. "
+            "Keep ambiguous source values in notes or raw_fields instead of discarding them."
+        ),
+        alias="EXTRACTION_RULES",
+    )
+
+    @property
+    def inbox_dir(self) -> Path:
+        return self.data_dir / "inbox"
+
+    @property
+    def profiles_dir(self) -> Path:
+        return self.data_dir / "profiles"
+
+    @property
+    def audit_log(self) -> Path:
+        return self.data_dir / "audit.log"
+
+    @property
+    def cors_origins(self) -> List[str]:
+        return [origin.strip() for origin in self.cors_origin.split(",") if origin.strip()]
+
+    def ensure_dirs(self) -> None:
+        self.inbox_dir.mkdir(parents=True, exist_ok=True)
+        self.profiles_dir.mkdir(parents=True, exist_ok=True)
+        self.audit_log.parent.mkdir(parents=True, exist_ok=True)
+
+
+settings = Settings()

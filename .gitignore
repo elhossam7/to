@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+
+data/inbox/*
+data/profiles/*
+data/audit.log
+test-results/
+
+!.gitkeep
