@@ -44,6 +44,15 @@ ollama serve
 
 Change `OLLAMA_MODEL` in `.env` if you want another local model.
 
+## Azure VM Deploy
+
+Deployment assets live in `deploy/`:
+
+- `profile-extraction.service` runs FastAPI on `127.0.0.1:8000`.
+- `nginx-profile-extraction.conf` serves the React build on `127.0.0.1:8080` and proxies API/SSE traffic.
+- `profile-extraction.env.example` configures `/data` storage and `qwen3-vl:235b-cloud`.
+- `azure-vm.md` contains the full VM setup, update, tunnel, and smoke-test commands.
+
 ## API
 
 - `POST /ingest` uploads and queues a `.txt` file.

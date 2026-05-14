@@ -1,0 +1,25 @@
+[Unit]
+Description=Profile Extraction FastAPI backend
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=extapp
+Group=extapp
+WorkingDirectory=/opt/profile-extraction
+EnvironmentFile=/etc/profile-extraction.env
+ExecStart=/opt/profile-extraction/.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+# Keep the app private to the VM and give it only the filesystem access it needs.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/data /opt/profile-extraction
+
+[Install]
+WantedBy=multi-user.target
