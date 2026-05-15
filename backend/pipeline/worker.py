@@ -52,6 +52,51 @@ def _merge_profile(existing: Dict[str, Any] | None, profile: Dict[str, Any]) -> 
     return merged
 
 
+async def _extract_profile_from_documents(
+    job: ProcessingJob,
+    documents: List[tuple[str, List[str]]],
+    all_lines: List[str],
+) -> tuple[Dict[str, Any], List[str]]:
+    if len(documents) == 1:
+        result = await call_ollama(documents)
+        return validate_profile(result, job.paths[0], all_lines)
+
+    merged: Dict[str, Any] | None = None
+    warnings: List[str] = []
+    failures: List[str] = []
+    failed_names: List[str] = []
+
+    for path, document in zip(job.paths, documents):
+        try:
+            result = await call_ollama([document])
+            profile, file_warnings = validate_profile(result, path, document[1])
+        except Exception as exc:
+            failures.append(f"{path.name}: {str(exc) or exc.__class__.__name__}")
+            failed_names.append(path.name)
+            append_audit(
+                {
+                    "event": "file_error",
+                    "batch_id": job.batch_id,
+                    "path": str(path),
+                    "error": str(exc) or exc.__class__.__name__,
+                }
+            )
+            continue
+
+        profile_data = {key: value for key, value in profile.items() if key != "id" and not key.startswith("_")}
+        merged = profile_data if merged is None else _merge_value(merged, profile_data)
+        warnings.extend(file_warnings)
+
+    if merged is None:
+        joined = "; ".join(failures) if failures else "no documents were processed"
+        raise RuntimeError(f"Ollama extraction failed for all files in batch: {joined}")
+
+    profile, final_warnings = validate_profile(merged, job.paths[0], all_lines)
+    warnings.extend(final_warnings)
+    warnings.extend(f"failed_file:{name}" for name in failed_names)
+    return profile, list(dict.fromkeys(warnings))
+
+
 async def process_job(job: ProcessingJob, broadcaster: Broadcaster) -> Dict[str, Any]:
     await broadcaster.broadcast(
         {
@@ -72,9 +117,8 @@ async def process_job(job: ProcessingJob, broadcaster: Broadcaster) -> Dict[str,
         documents.append((path.name, lines))
         all_lines.extend(lines)
 
-    result = await call_ollama(documents)
     primary_path = job.paths[0]
-    profile, warnings = validate_profile(result, primary_path, all_lines)
+    profile, warnings = await _extract_profile_from_documents(job, documents, all_lines)
     profile["_source"] = {
         "batch_id": job.batch_id,
         "source": job.source,

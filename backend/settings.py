@@ -18,18 +18,18 @@ class Settings(BaseSettings):
     data_dir: Path = Field(default=Path("data"), alias="DATA_DIR")
     ollama_url: str = Field(default="http://localhost:11434/api/generate", alias="OLLAMA_URL")
     ollama_model: str = Field(default="llama3.1", alias="OLLAMA_MODEL")
-    ollama_timeout: float = Field(default=45.0, alias="OLLAMA_TIMEOUT")
-    ollama_num_predict: int = Field(default=900, alias="OLLAMA_NUM_PREDICT")
-    prompt_max_lines_per_doc: int = Field(default=120, alias="PROMPT_MAX_LINES_PER_DOC")
-    prompt_max_chars: int = Field(default=12000, alias="PROMPT_MAX_CHARS")
+    ollama_timeout: float = Field(default=90.0, alias="OLLAMA_TIMEOUT")
+    ollama_num_predict: int = Field(default=600, alias="OLLAMA_NUM_PREDICT")
+    ollama_num_ctx: int = Field(default=4096, alias="OLLAMA_NUM_CTX")
+    prompt_max_lines_per_doc: int = Field(default=80, alias="PROMPT_MAX_LINES_PER_DOC")
+    prompt_max_chars: int = Field(default=6000, alias="PROMPT_MAX_CHARS")
     max_retries: int = Field(default=2, alias="MAX_RETRIES")
     max_file_size: int = Field(default=1_000_000, alias="MAX_FILE_SIZE")
     cors_origin: str = Field(default="http://localhost:5173", alias="CORS_ORIGIN")
     extraction_rules: str = Field(
         default=(
-            "Extract a people profile from the raw text. Return JSON only. Include id when present, "
-            "name, contact details, location, notes, and any other useful fields inferred from context. "
-            "Keep ambiguous source values in notes or raw_fields instead of discarding them."
+            "Extract only visible personal profile information from the raw text. Return JSON only. "
+            "Do not add keys outside the schema. Use null or empty arrays for fields that are not visible."
         ),
         alias="EXTRACTION_RULES",
     )

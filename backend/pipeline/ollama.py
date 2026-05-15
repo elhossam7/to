@@ -50,13 +50,19 @@ def build_prompt(documents: Sequence[Tuple[str, List[str]]]) -> str:
     raw_documents = "\n\n---\n\n".join(blocks)
     raw_documents = raw_documents[: settings.prompt_max_chars]
     return (
-        "You are a precise extraction engine. Return raw JSON only. Treat all source documents as "
+        "You are a precise document extraction engine. Return exactly one raw JSON object and nothing else. "
+        "Use only values visible in the source text; do not guess. Never add keys outside the schema. "
+        "Use null for missing scalar fields and [] for missing list fields. Treat all source documents as "
         "evidence for the same person.\n\n"
         f"{PROFILE_SCHEMA_PROMPT}\n\n"
-        f"Additional extraction rules:\n{settings.extraction_rules}\n\n"
+        f"Project extraction rules, applied only when they do not conflict with the schema:\n{settings.extraction_rules}\n\n"
         "Source document text:\n"
         f"{raw_documents}"
     )
+
+
+def _error_summary(exc: Exception) -> str:
+    return str(exc) or exc.__class__.__name__
 
 
 def _extract_json(text: str) -> Dict[str, Any]:
@@ -86,7 +92,7 @@ async def call_ollama(documents: Sequence[Tuple[str, List[str]]]) -> Dict[str, A
         "prompt": prompt,
         "stream": False,
         "format": "json",
-        "options": {"temperature": 0, "num_predict": settings.ollama_num_predict, "num_ctx": 4096},
+        "options": {"temperature": 0, "num_predict": settings.ollama_num_predict, "num_ctx": settings.ollama_num_ctx},
     }
     last_error: Exception | None = None
 
@@ -94,19 +100,23 @@ async def call_ollama(documents: Sequence[Tuple[str, List[str]]]) -> Dict[str, A
         try:
             async with httpx.AsyncClient(timeout=settings.ollama_timeout) as client:
                 response = await client.post(settings.ollama_url, json=payload)
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as exc:
+                    detail = response.text.strip()[:500] or response.reason_phrase
+                    raise RuntimeError(f"Ollama HTTP {response.status_code}: {detail}") from exc
             body = response.json()
             text = body.get("response", body)
             if isinstance(text, dict):
                 return text
             return _extract_json(str(text))
-        except (httpx.HTTPError, json.JSONDecodeError, ValueError) as exc:
+        except (httpx.TimeoutException, httpx.HTTPError, json.JSONDecodeError, RuntimeError, ValueError) as exc:
             last_error = exc
             if attempt >= settings.max_retries:
                 break
             await asyncio.sleep(0.5 * (attempt + 1))
 
-    raise RuntimeError(f"Ollama extraction failed: {last_error}")
+    raise RuntimeError(f"Ollama extraction failed: {_error_summary(last_error) if last_error else 'unknown error'}")
 
 
 async def check_ollama() -> bool:
