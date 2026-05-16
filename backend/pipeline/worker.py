@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from backend.broadcaster import Broadcaster
-from backend.pipeline.ollama import call_ollama
+from backend.pipeline.ollama import call_ollama, is_non_recoverable_ollama_error
 from backend.pipeline.parser import read_lines
 from backend.pipeline.jobs import ProcessingJob
 from backend.pipeline.schema import normalize_profile
@@ -73,6 +73,8 @@ async def _extract_profile_from_documents(
                 "error": str(exc) or exc.__class__.__name__,
             }
         )
+        if is_non_recoverable_ollama_error(exc):
+            raise
 
     merged: Dict[str, Any] | None = None
     warnings: List[str] = []

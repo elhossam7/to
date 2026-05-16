@@ -57,3 +57,23 @@ def test_validate_profile_normalizes_labeled_nationality(tmp_path: Path) -> None
 
     assert profile["personal"]["nationality"] == "Moroccan"
     assert warnings == []
+
+
+def test_validate_profile_repairs_stringified_address_blob(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "address": {
+                "city": "Karachi",
+                "street": "{'street': None, 'city': Karachi, 'region': None, 'postal_code': None, 'country': Pakistan, 'country_code': PK}",
+            },
+            "contact": {"emails": [{"address": "xesahxe@gmail.com"}]},
+        },
+        tmp_path / "source.txt",
+        ["city: Karachi", "country: Pakistan"],
+    )
+
+    assert profile["address"]["street"] is None
+    assert profile["address"]["city"] == "Karachi"
+    assert profile["address"]["country"] == "Pakistan"
+    assert profile["address"]["country_code"] == "PK"
+    assert "address_blob_repaired" in warnings

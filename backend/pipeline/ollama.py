@@ -17,6 +17,23 @@ _signal_re = re.compile(
     r"\b\d{4}-\d{2}-\d{2}\b|\+\d{6,})",
     re.IGNORECASE,
 )
+_non_recoverable_http_statuses = {401, 403, 404, 429}
+
+
+class OllamaHTTPError(RuntimeError):
+    def __init__(self, status_code: int, detail: str) -> None:
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(f"Ollama HTTP {status_code}: {detail}")
+
+
+def is_non_recoverable_ollama_error(exc: BaseException) -> bool:
+    current: BaseException | None = exc
+    while current is not None:
+        if isinstance(current, OllamaHTTPError) and current.status_code in _non_recoverable_http_statuses:
+            return True
+        current = current.__cause__
+    return False
 
 
 def compact_lines(lines: List[str]) -> List[str]:
@@ -107,11 +124,13 @@ async def call_ollama(documents: Sequence[Tuple[str, List[str]]]) -> Dict[str, A
                 return await _post_non_streaming(client, payload)
         except (httpx.TimeoutException, httpx.HTTPError, json.JSONDecodeError, RuntimeError, ValueError) as exc:
             last_error = exc
+            if is_non_recoverable_ollama_error(exc):
+                raise RuntimeError(f"Ollama extraction failed: {_error_summary(exc)}") from exc
             if attempt >= settings.max_retries:
                 break
             await asyncio.sleep(0.5 * (attempt + 1))
 
-    raise RuntimeError(f"Ollama extraction failed: {_error_summary(last_error) if last_error else 'unknown error'}")
+    raise RuntimeError(f"Ollama extraction failed: {_error_summary(last_error) if last_error else 'unknown error'}") from last_error
 
 
 async def _post_non_streaming(client: httpx.AsyncClient, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -120,7 +139,7 @@ async def _post_non_streaming(client: httpx.AsyncClient, payload: Dict[str, Any]
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         detail = response.text.strip()[:500] or response.reason_phrase
-        raise RuntimeError(f"Ollama HTTP {response.status_code}: {detail}") from exc
+        raise OllamaHTTPError(response.status_code, detail) from exc
 
     body = response.json()
     text = body.get("response", body)
@@ -137,7 +156,7 @@ async def _post_streaming(client: httpx.AsyncClient, payload: Dict[str, Any]) ->
         except httpx.HTTPStatusError as exc:
             detail = await response.aread()
             text = detail.decode("utf-8", errors="replace").strip()[:500] or response.reason_phrase
-            raise RuntimeError(f"Ollama HTTP {response.status_code}: {text}") from exc
+            raise OllamaHTTPError(response.status_code, text) from exc
 
         async for body in _ollama_stream_events(response):
             if body.get("error"):

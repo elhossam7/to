@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from backend.pipeline.jobs import ProcessingJob
+from backend.pipeline.ollama import OllamaHTTPError
 from backend.pipeline.validator import repair_profile
 from backend.pipeline.worker import _extract_profile_from_documents, _merge_profile
 from backend.settings import settings
@@ -85,6 +86,29 @@ async def test_batch_continues_when_one_fallback_file_fails(monkeypatch: pytest.
     assert profile["id"] == "email-ada-example.com"
     assert profile["contact"]["emails"] == [{"address": "ada@example.com", "primary": True}]
     assert "failed_file:bad.txt" in warnings
+
+
+@pytest.mark.asyncio
+async def test_batch_does_not_fallback_after_usage_limit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    settings.ensure_dirs()
+
+    first = tmp_path / "chrome.txt"
+    second = tmp_path / "edge.txt"
+    job = ProcessingJob(paths=[first, second], source="upload_batch", batch_id="batch-4")
+    documents = [(first.name, ["name: Ada Lovelace"]), (second.name, ["email: ada@example.com"])]
+    calls: list[list[str]] = []
+
+    async def fake_call_ollama(docs: list[tuple[str, list[str]]]) -> dict:
+        calls.append([filename for filename, _ in docs])
+        raise RuntimeError("Ollama extraction failed: Ollama HTTP 429: usage limit") from OllamaHTTPError(429, "usage limit")
+
+    monkeypatch.setattr("backend.pipeline.worker.call_ollama", fake_call_ollama)
+
+    with pytest.raises(RuntimeError, match="429"):
+        await _extract_profile_from_documents(job, documents, [line for _, lines in documents for line in lines])
+
+    assert calls == [[first.name, second.name]]
 
 
 def test_repair_runs_after_existing_profile_merge() -> None:

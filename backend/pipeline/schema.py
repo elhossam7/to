@@ -116,8 +116,14 @@ def _first_present(sources: Iterable[Dict[str, Any]], keys: Iterable[str]) -> An
 
 
 def _first_text(sources: Iterable[Dict[str, Any]], keys: Iterable[str]) -> str | None:
-    value = _first_present(sources, keys)
-    return _clean_text(value)
+    for source in sources:
+        for key in keys:
+            if key not in source or source[key] in (None, ""):
+                continue
+            text = _clean_text(source[key])
+            if text:
+                return text
+    return None
 
 
 def _first_int(sources: Iterable[Dict[str, Any]], keys: Iterable[str]) -> int | None:
@@ -131,6 +137,8 @@ def _first_int(sources: Iterable[Dict[str, Any]], keys: Iterable[str]) -> int | 
 
 def _clean_text(value: Any) -> str | None:
     if value is None:
+        return None
+    if isinstance(value, (dict, list, tuple, set)):
         return None
     text = str(value).strip()
     return text or None

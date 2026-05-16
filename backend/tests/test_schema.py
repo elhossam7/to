@@ -19,3 +19,19 @@ def test_normalize_profile_drops_unknown_keys_and_maps_aliases() -> None:
     assert profile["contact"]["phones"] == [{"number": "2964 618875", "type": None, "primary": True}]
     assert profile["address"]["region"] == "tierra del fuego"
     assert "frequentFlyerNumber" not in profile
+
+
+def test_normalize_profile_does_not_stringify_nested_objects_as_text() -> None:
+    profile = normalize_profile(
+        {
+            "address": {
+                "street": {"street": None, "city": "Karachi", "country": "Pakistan", "country_code": "PK"},
+                "city": "Karachi",
+                "country": "Pakistan",
+            }
+        }
+    )
+
+    assert profile["address"]["street"] is None
+    assert profile["address"]["city"] == "Karachi"
+    assert profile["address"]["country"] == "Pakistan"

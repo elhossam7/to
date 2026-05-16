@@ -16,12 +16,17 @@ _country_aliases = {
     "morroco": ("Morocco", "MA"),
     "morocco": ("Morocco", "MA"),
     "marruecos": ("Morocco", "MA"),
+    "pk": ("Pakistan", "PK"),
+    "pakistan": ("Pakistan", "PK"),
 }
+_country_codes = {"MA": "Morocco", "PK": "Pakistan"}
 _nationality_aliases = {
     "maroc": "Moroccan",
     "marocain": "Moroccan",
     "marocaine": "Moroccan",
     "moroccan": "Moroccan",
+    "pakistan": "Pakistani",
+    "pakistani": "Pakistani",
 }
 
 
@@ -108,17 +113,51 @@ def _line_labeled_value(lines: List[str], labels: set[str]) -> str | None:
     return None
 
 
+def _blob_value(text: Any, field: str) -> str | None:
+    if not isinstance(text, str) or "{" not in text or field not in text:
+        return None
+    match = re.search(rf"['\"]?{re.escape(field)}['\"]?\s*:\s*['\"]?(?P<value>[^,'\"}}]+)", text)
+    if not match:
+        return None
+    value = match.group("value").strip()
+    if _alias_key(value) in {"none", "null"}:
+        return None
+    return value
+
+
+def _repair_address_blob(address: Dict[str, Any]) -> bool:
+    for source_field in ("street", "city", "region", "postal_code", "country", "country_code"):
+        blob = address.get(source_field)
+        if not isinstance(blob, str) or "{" not in blob:
+            continue
+        repaired = False
+        for target_field in ("street", "city", "region", "postal_code", "country", "country_code"):
+            value = _blob_value(blob, target_field)
+            if value and (not address.get(target_field) or address.get(target_field) == blob):
+                address[target_field] = value
+                repaired = True
+        if repaired and address.get(source_field) == blob:
+            address[source_field] = None
+        return repaired
+    return False
+
+
 def repair_profile(profile: Dict[str, Any], lines: List[str]) -> List[str]:
     warnings: List[str] = []
     address = profile["address"]
     personal = profile["personal"]
 
+    if _repair_address_blob(address):
+        warnings.append("address_blob_repaired")
+
     country = _country_alias(address.get("country"))
     if country:
         address["country"], address["country_code"] = country
-    elif isinstance(address.get("country_code"), str) and address["country_code"].strip().upper() == "MA":
-        address["country"] = address.get("country") or "Morocco"
-        address["country_code"] = "MA"
+    elif isinstance(address.get("country_code"), str):
+        code = address["country_code"].strip().upper()
+        if code in _country_codes:
+            address["country"] = address.get("country") or _country_codes[code]
+            address["country_code"] = code
 
     if not address.get("country"):
         labeled_country = _line_labeled_value(lines, {"country", "pays"})
