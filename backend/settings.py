@@ -31,7 +31,9 @@ class Settings(BaseSettings):
         default=(
             "Extract only visible personal profile information from the raw text. Return JSON only. "
             "Do not add keys outside the schema. Use null or empty arrays for fields that are not visible. "
-            "Never put a country name such as Maroc or Morocco in street; use address.country and address.country_code."
+            "Infer country, country_code, and region from visible city, region, postal code, phone/calling code, "
+            "or country code only when the mapping is unambiguous. Never put a country name such as Maroc or "
+            "Morocco in street; use address.country and address.country_code."
         ),
         alias="EXTRACTION_RULES",
     )

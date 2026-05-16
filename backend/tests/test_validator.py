@@ -112,3 +112,41 @@ def test_validate_profile_infers_zambia_from_lusaka_city(tmp_path: Path) -> None
     assert profile["address"]["country_code"] == "ZM"
     assert profile["address"]["region"] == "Lusaka Province"
     assert "country_inferred_from_city" in warnings
+
+
+def test_validate_profile_infers_algeria_from_arabic_setif_region(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "address": {
+                "city": "EL EULMA",
+                "country": None,
+                "country_code": None,
+                "region": "\u0633\u0637\u064a\u0641",
+                "street": "\u0634\u0627\u0631\u0639 \u0628\u0644\u062e\u064a\u0631\u064a \u0645\u0631\u0648\u0627\u0646\u064a \u062d\u064a 36 \u0635\u062e\u0631\u064a",
+            },
+            "contact": {"emails": [{"address": "hadsaid77@gmail.com"}]},
+        },
+        tmp_path / "source.txt",
+        ["city: EL EULMA", "region: \u0633\u0637\u064a\u0641"],
+    )
+
+    assert profile["address"]["country"] == "Algeria"
+    assert profile["address"]["country_code"] == "DZ"
+    assert profile["address"]["region"] == "Setif Province"
+    assert "country_inferred_from_region" in warnings
+
+
+def test_validate_profile_infers_algeria_from_el_eulma_city(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "address": {"city": "EL EULMA", "country": None, "country_code": None, "region": None},
+            "contact": {"emails": [{"address": "hadsaid77@gmail.com"}]},
+        },
+        tmp_path / "source.txt",
+        ["city: EL EULMA"],
+    )
+
+    assert profile["address"]["country"] == "Algeria"
+    assert profile["address"]["country_code"] == "DZ"
+    assert profile["address"]["region"] == "Setif Province"
+    assert "country_inferred_from_city" in warnings

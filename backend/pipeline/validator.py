@@ -20,14 +20,23 @@ _country_aliases = {
     "pakistan": ("Pakistan", "PK"),
     "zm": ("Zambia", "ZM"),
     "zambia": ("Zambia", "ZM"),
+    "dz": ("Algeria", "DZ"),
+    "algeria": ("Algeria", "DZ"),
+    "algerie": ("Algeria", "DZ"),
 }
-_country_codes = {"MA": "Morocco", "PK": "Pakistan", "ZM": "Zambia"}
+_country_codes = {"MA": "Morocco", "PK": "Pakistan", "ZM": "Zambia", "DZ": "Algeria"}
 _calling_country_codes = {"260": ("Zambia", "ZM")}
 _location_defaults = {
     ("ZM", "lusaka"): {"city": "Lusaka", "region": "Lusaka Province"},
+    ("DZ", "el eulma"): {"city": "El Eulma", "region": "Setif Province"},
 }
 _postal_defaults = {
     ("ZM", "10101"): {"city": "Lusaka", "region": "Lusaka Province"},
+}
+_region_defaults = {
+    "setif": ("Algeria", "DZ", "Setif Province"),
+    "sétif": ("Algeria", "DZ", "Setif Province"),
+    "\u0633\u0637\u064a\u0641": ("Algeria", "DZ", "Setif Province"),
 }
 _nationality_aliases = {
     "maroc": "Moroccan",
@@ -38,6 +47,9 @@ _nationality_aliases = {
     "pakistani": "Pakistani",
     "zambia": "Zambian",
     "zambian": "Zambian",
+    "algeria": "Algerian",
+    "algerie": "Algerian",
+    "algerian": "Algerian",
 }
 
 
@@ -101,6 +113,10 @@ def _slug(value: str) -> str:
 
 def _alias_key(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value).strip().lower()).strip()
+
+
+def _place_key(value: Any) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^\w]+", " ", str(value).strip().casefold())).strip()
 
 
 def _country_alias(value: Any) -> Tuple[str, str] | None:
@@ -187,7 +203,13 @@ def repair_profile(profile: Dict[str, Any], lines: List[str]) -> List[str]:
             address["country"], address["country_code"] = country
 
     if not address.get("country"):
-        city = _alias_key(address.get("city"))
+        region = _region_defaults.get(_place_key(address.get("region")))
+        if region:
+            address["country"], address["country_code"], address["region"] = region
+            warnings.append("country_inferred_from_region")
+
+    if not address.get("country"):
+        city = _place_key(address.get("city"))
         for (country_code, default_city), defaults in _location_defaults.items():
             if city == default_city:
                 address["country"] = _country_codes[country_code]
@@ -196,13 +218,13 @@ def repair_profile(profile: Dict[str, Any], lines: List[str]) -> List[str]:
                 break
 
     country_code = str(address.get("country_code") or "").upper()
-    city = _alias_key(address.get("city"))
-    postal_code = _alias_key(address.get("postal_code"))
+    city = _place_key(address.get("city"))
+    postal_code = _place_key(address.get("postal_code"))
     defaults = _location_defaults.get((country_code, city)) or _postal_defaults.get((country_code, postal_code))
     if defaults:
         if not address.get("city"):
             address["city"] = defaults["city"]
-        if not address.get("region"):
+        if not address.get("region") or _place_key(address.get("region")) in _region_defaults:
             address["region"] = defaults["region"]
             warnings.append("region_inferred_from_location")
 

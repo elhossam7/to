@@ -69,7 +69,9 @@ def build_prompt(documents: Sequence[Tuple[str, List[str]]]) -> str:
     return (
         "You are a precise document extraction engine. Return exactly one raw JSON object and nothing else. "
         "Use only values visible in the source text; do not guess. Never add keys outside the schema. "
-        "Use null for missing scalar fields and [] for missing list fields. Treat all source documents as "
+        "Use null for missing scalar fields and [] for missing list fields. When a visible city, region, "
+        "postal code, phone/calling code, or country code unambiguously identifies a country or region, "
+        "fill the normalized country, country_code, and region fields. Treat all source documents as "
         "evidence for the same person.\n\n"
         f"{PROFILE_SCHEMA_PROMPT}\n\n"
         f"Project extraction rules, applied only when they do not conflict with the schema:\n{settings.extraction_rules}\n\n"
