@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, AsyncIterator, Dict, List, Sequence, Tuple
 
 import httpx
 
@@ -62,6 +62,8 @@ def build_prompt(documents: Sequence[Tuple[str, List[str]]]) -> str:
 
 
 def _error_summary(exc: Exception) -> str:
+    if isinstance(exc, httpx.TimeoutException):
+        return exc.__class__.__name__
     return str(exc) or exc.__class__.__name__
 
 
@@ -90,7 +92,7 @@ async def call_ollama(documents: Sequence[Tuple[str, List[str]]]) -> Dict[str, A
     payload = {
         "model": settings.ollama_model,
         "prompt": prompt,
-        "stream": False,
+        "stream": settings.ollama_stream,
         "format": "json",
         "options": {"temperature": 0, "num_predict": settings.ollama_num_predict, "num_ctx": settings.ollama_num_ctx},
     }
@@ -98,18 +100,11 @@ async def call_ollama(documents: Sequence[Tuple[str, List[str]]]) -> Dict[str, A
 
     for attempt in range(settings.max_retries + 1):
         try:
-            async with httpx.AsyncClient(timeout=settings.ollama_timeout) as client:
-                response = await client.post(settings.ollama_url, json=payload)
-                try:
-                    response.raise_for_status()
-                except httpx.HTTPStatusError as exc:
-                    detail = response.text.strip()[:500] or response.reason_phrase
-                    raise RuntimeError(f"Ollama HTTP {response.status_code}: {detail}") from exc
-            body = response.json()
-            text = body.get("response", body)
-            if isinstance(text, dict):
-                return text
-            return _extract_json(str(text))
+            timeout = httpx.Timeout(connect=10.0, read=settings.ollama_timeout, write=30.0, pool=10.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                if settings.ollama_stream:
+                    return await _post_streaming(client, payload)
+                return await _post_non_streaming(client, payload)
         except (httpx.TimeoutException, httpx.HTTPError, json.JSONDecodeError, RuntimeError, ValueError) as exc:
             last_error = exc
             if attempt >= settings.max_retries:
@@ -117,6 +112,55 @@ async def call_ollama(documents: Sequence[Tuple[str, List[str]]]) -> Dict[str, A
             await asyncio.sleep(0.5 * (attempt + 1))
 
     raise RuntimeError(f"Ollama extraction failed: {_error_summary(last_error) if last_error else 'unknown error'}")
+
+
+async def _post_non_streaming(client: httpx.AsyncClient, payload: Dict[str, Any]) -> Dict[str, Any]:
+    response = await client.post(settings.ollama_url, json=payload)
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        detail = response.text.strip()[:500] or response.reason_phrase
+        raise RuntimeError(f"Ollama HTTP {response.status_code}: {detail}") from exc
+
+    body = response.json()
+    text = body.get("response", body)
+    if isinstance(text, dict):
+        return text
+    return _extract_json(str(text))
+
+
+async def _post_streaming(client: httpx.AsyncClient, payload: Dict[str, Any]) -> Dict[str, Any]:
+    chunks: List[str] = []
+    async with client.stream("POST", settings.ollama_url, json=payload) as response:
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = await response.aread()
+            text = detail.decode("utf-8", errors="replace").strip()[:500] or response.reason_phrase
+            raise RuntimeError(f"Ollama HTTP {response.status_code}: {text}") from exc
+
+        async for body in _ollama_stream_events(response):
+            if body.get("error"):
+                raise RuntimeError(f"Ollama stream error: {body['error']}")
+            fragment = body.get("response")
+            if isinstance(fragment, str):
+                chunks.append(fragment)
+            elif isinstance(fragment, dict):
+                return fragment
+
+    if not chunks:
+        raise ValueError("Ollama stream returned no response text")
+    return _extract_json("".join(chunks))
+
+
+async def _ollama_stream_events(response: httpx.Response) -> AsyncIterator[Dict[str, Any]]:
+    async for line in response.aiter_lines():
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        if not isinstance(event, dict):
+            raise ValueError("Ollama stream event is not a JSON object")
+        yield event
 
 
 async def check_ollama() -> bool:

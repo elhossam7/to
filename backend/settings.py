@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     ollama_url: str = Field(default="http://localhost:11434/api/generate", alias="OLLAMA_URL")
     ollama_model: str = Field(default="llama3.1", alias="OLLAMA_MODEL")
     ollama_timeout: float = Field(default=90.0, alias="OLLAMA_TIMEOUT")
+    ollama_stream: bool = Field(default=True, alias="OLLAMA_STREAM")
     ollama_num_predict: int = Field(default=600, alias="OLLAMA_NUM_PREDICT")
     ollama_num_ctx: int = Field(default=4096, alias="OLLAMA_NUM_CTX")
     prompt_max_lines_per_doc: int = Field(default=80, alias="PROMPT_MAX_LINES_PER_DOC")

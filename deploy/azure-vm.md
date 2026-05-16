@@ -79,6 +79,8 @@ Confirm `/etc/profile-extraction.env` contains:
 DATA_DIR=/data
 OLLAMA_URL=http://127.0.0.1:11434/api/generate
 OLLAMA_MODEL=qwen3-vl:235b-cloud
+OLLAMA_TIMEOUT=300
+OLLAMA_STREAM=true
 CORS_ORIGIN=http://127.0.0.1:8080
 ```
 
