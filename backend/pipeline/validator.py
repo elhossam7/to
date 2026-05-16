@@ -10,30 +10,160 @@ from backend.pipeline.schema import has_visible_data, normalize_profile
 
 _safe_name_re = re.compile(r"[^a-zA-Z0-9_.-]+")
 _label_value_re = re.compile(r"\b(?P<label>nationality|nationalite|nationalit[eé]|country|pays)\b\s*[:=-]?\s*(?P<value>.+)", re.IGNORECASE)
+_country_rows = (
+    ("AF", "Afghanistan", "Afghan", ("afghanistan",)),
+    ("AL", "Albania", "Albanian", ("albania",)),
+    ("DZ", "Algeria", "Algerian", ("algeria", "algerie", "algerien", "algerienne")),
+    ("AR", "Argentina", "Argentine", ("argentina",)),
+    ("AU", "Australia", "Australian", ("australia",)),
+    ("AT", "Austria", "Austrian", ("austria",)),
+    ("BD", "Bangladesh", "Bangladeshi", ("bangladesh",)),
+    ("BE", "Belgium", "Belgian", ("belgium", "belgique")),
+    ("BR", "Brazil", "Brazilian", ("brazil", "brasil")),
+    ("BG", "Bulgaria", "Bulgarian", ("bulgaria",)),
+    ("CA", "Canada", "Canadian", ("canada",)),
+    ("CL", "Chile", "Chilean", ("chile",)),
+    ("CN", "China", "Chinese", ("china", "prc")),
+    ("CO", "Colombia", "Colombian", ("colombia",)),
+    ("HR", "Croatia", "Croatian", ("croatia",)),
+    ("CZ", "Czechia", "Czech", ("czechia", "czech republic")),
+    ("DK", "Denmark", "Danish", ("denmark",)),
+    ("EG", "Egypt", "Egyptian", ("egypt", "egypte", "misr")),
+    ("FI", "Finland", "Finnish", ("finland",)),
+    ("FR", "France", "French", ("france",)),
+    ("DE", "Germany", "German", ("germany", "deutschland", "allemagne")),
+    ("GH", "Ghana", "Ghanaian", ("ghana",)),
+    ("GR", "Greece", "Greek", ("greece",)),
+    ("HK", "Hong Kong", "Hong Konger", ("hong kong",)),
+    ("HU", "Hungary", "Hungarian", ("hungary",)),
+    ("IN", "India", "Indian", ("india",)),
+    ("ID", "Indonesia", "Indonesian", ("indonesia",)),
+    ("IR", "Iran", "Iranian", ("iran",)),
+    ("IQ", "Iraq", "Iraqi", ("iraq",)),
+    ("IE", "Ireland", "Irish", ("ireland",)),
+    ("IT", "Italy", "Italian", ("italy", "italia")),
+    ("JP", "Japan", "Japanese", ("japan",)),
+    ("JO", "Jordan", "Jordanian", ("jordan",)),
+    ("KE", "Kenya", "Kenyan", ("kenya",)),
+    ("KW", "Kuwait", "Kuwaiti", ("kuwait",)),
+    ("LB", "Lebanon", "Lebanese", ("lebanon", "liban")),
+    ("LY", "Libya", "Libyan", ("libya",)),
+    ("MY", "Malaysia", "Malaysian", ("malaysia",)),
+    ("MX", "Mexico", "Mexican", ("mexico",)),
+    ("MA", "Morocco", "Moroccan", ("morocco", "maroc", "morroco", "marruecos")),
+    ("NL", "Netherlands", "Dutch", ("netherlands", "holland")),
+    ("NZ", "New Zealand", "New Zealander", ("new zealand",)),
+    ("NG", "Nigeria", "Nigerian", ("nigeria",)),
+    ("NO", "Norway", "Norwegian", ("norway",)),
+    ("OM", "Oman", "Omani", ("oman",)),
+    ("PK", "Pakistan", "Pakistani", ("pakistan",)),
+    ("PE", "Peru", "Peruvian", ("peru",)),
+    ("PH", "Philippines", "Filipino", ("philippines",)),
+    ("PL", "Poland", "Polish", ("poland",)),
+    ("PT", "Portugal", "Portuguese", ("portugal",)),
+    ("QA", "Qatar", "Qatari", ("qatar",)),
+    ("RO", "Romania", "Romanian", ("romania",)),
+    ("RU", "Russia", "Russian", ("russia", "russian federation")),
+    ("SA", "Saudi Arabia", "Saudi", ("saudi arabia", "ksa")),
+    ("RS", "Serbia", "Serbian", ("serbia",)),
+    ("SG", "Singapore", "Singaporean", ("singapore",)),
+    ("ZA", "South Africa", "South African", ("south africa",)),
+    ("KR", "South Korea", "South Korean", ("south korea", "korea")),
+    ("ES", "Spain", "Spanish", ("spain", "espana", "espagne")),
+    ("SE", "Sweden", "Swedish", ("sweden",)),
+    ("CH", "Switzerland", "Swiss", ("switzerland", "suisse")),
+    ("SY", "Syria", "Syrian", ("syria",)),
+    ("TH", "Thailand", "Thai", ("thailand",)),
+    ("TN", "Tunisia", "Tunisian", ("tunisia", "tunisie")),
+    ("TR", "Turkey", "Turkish", ("turkey", "turkiye")),
+    ("UA", "Ukraine", "Ukrainian", ("ukraine",)),
+    ("AE", "United Arab Emirates", "Emirati", ("united arab emirates", "uae", "emirates")),
+    ("GB", "United Kingdom", "British", ("united kingdom", "uk", "great britain", "england")),
+    ("US", "United States", "American", ("united states", "usa", "us", "america")),
+    ("VE", "Venezuela", "Venezuelan", ("venezuela",)),
+    ("VN", "Vietnam", "Vietnamese", ("vietnam",)),
+    ("ZM", "Zambia", "Zambian", ("zambia",)),
+)
+_country_codes = {code: country for code, country, _nationality, _aliases in _country_rows}
+_country_nationalities = {code: nationality for code, _country, nationality, _aliases in _country_rows}
 _country_aliases = {
-    "ma": ("Morocco", "MA"),
-    "maroc": ("Morocco", "MA"),
-    "morroco": ("Morocco", "MA"),
-    "morocco": ("Morocco", "MA"),
-    "marruecos": ("Morocco", "MA"),
-    "pk": ("Pakistan", "PK"),
-    "pakistan": ("Pakistan", "PK"),
-    "zm": ("Zambia", "ZM"),
-    "zambia": ("Zambia", "ZM"),
-    "dz": ("Algeria", "DZ"),
-    "algeria": ("Algeria", "DZ"),
-    "algerie": ("Algeria", "DZ"),
-    "eg": ("Egypt", "EG"),
-    "egypt": ("Egypt", "EG"),
+    alias: (country, code)
+    for code, country, _nationality, aliases in _country_rows
+    for alias in (code.lower(), country.lower(), *aliases)
 }
-_country_codes = {"MA": "Morocco", "PK": "Pakistan", "ZM": "Zambia", "DZ": "Algeria", "EG": "Egypt"}
-_country_nationalities = {"MA": "Moroccan", "PK": "Pakistani", "ZM": "Zambian", "DZ": "Algerian", "EG": "Egyptian"}
-_calling_country_codes = {"260": ("Zambia", "ZM")}
+_nationality_aliases = {
+    alias: nationality
+    for code, country, nationality, aliases in _country_rows
+    for alias in (country.lower(), nationality.lower(), *aliases)
+}
+_calling_country_codes = {
+    "20": ("Egypt", "EG"),
+    "212": ("Morocco", "MA"),
+    "213": ("Algeria", "DZ"),
+    "216": ("Tunisia", "TN"),
+    "218": ("Libya", "LY"),
+    "260": ("Zambia", "ZM"),
+    "27": ("South Africa", "ZA"),
+    "30": ("Greece", "GR"),
+    "31": ("Netherlands", "NL"),
+    "33": ("France", "FR"),
+    "34": ("Spain", "ES"),
+    "39": ("Italy", "IT"),
+    "41": ("Switzerland", "CH"),
+    "44": ("United Kingdom", "GB"),
+    "49": ("Germany", "DE"),
+    "52": ("Mexico", "MX"),
+    "55": ("Brazil", "BR"),
+    "61": ("Australia", "AU"),
+    "62": ("Indonesia", "ID"),
+    "63": ("Philippines", "PH"),
+    "81": ("Japan", "JP"),
+    "82": ("South Korea", "KR"),
+    "86": ("China", "CN"),
+    "90": ("Turkey", "TR"),
+    "91": ("India", "IN"),
+    "92": ("Pakistan", "PK"),
+    "971": ("United Arab Emirates", "AE"),
+    "966": ("Saudi Arabia", "SA"),
+    "974": ("Qatar", "QA"),
+}
 _location_defaults = {
+    ("AE", "dubai"): {"city": "Dubai", "region": "Dubai"},
+    ("AE", "abu dhabi"): {"city": "Abu Dhabi", "region": "Abu Dhabi"},
+    ("DZ", "algiers"): {"city": "Algiers", "region": "Algiers Province"},
+    ("DZ", "setif"): {"city": "Setif", "region": "Setif Province"},
     ("ZM", "lusaka"): {"city": "Lusaka", "region": "Lusaka Province"},
     ("DZ", "el eulma"): {"city": "El Eulma", "region": "Setif Province"},
     ("EG", "suez"): {"city": "Suez", "region": "Suez Governorate"},
     ("EG", "mansoura"): {"city": "Mansoura", "region": "Dakahlia Governorate"},
+    ("EG", "cairo"): {"city": "Cairo", "region": "Cairo Governorate"},
+    ("EG", "alexandria"): {"city": "Alexandria", "region": "Alexandria Governorate"},
+    ("FR", "paris"): {"city": "Paris", "region": "Ile-de-France"},
+    ("GB", "london"): {"city": "London", "region": "England"},
+    ("DE", "berlin"): {"city": "Berlin", "region": "Berlin"},
+    ("IT", "rome"): {"city": "Rome", "region": "Lazio"},
+    ("ES", "madrid"): {"city": "Madrid", "region": "Community of Madrid"},
+    ("ES", "barcelona"): {"city": "Barcelona", "region": "Catalonia"},
+    ("PK", "karachi"): {"city": "Karachi", "region": "Sindh"},
+    ("PK", "lahore"): {"city": "Lahore", "region": "Punjab"},
+    ("PK", "islamabad"): {"city": "Islamabad", "region": "Islamabad Capital Territory"},
+    ("MA", "casablanca"): {"city": "Casablanca", "region": "Casablanca-Settat"},
+    ("MA", "rabat"): {"city": "Rabat", "region": "Rabat-Sale-Kenitra"},
+    ("MA", "tanger"): {"city": "Tangier", "region": "Tanger-Tetouan-Al Hoceima"},
+    ("MA", "tangier"): {"city": "Tangier", "region": "Tanger-Tetouan-Al Hoceima"},
+    ("IN", "mumbai"): {"city": "Mumbai", "region": "Maharashtra"},
+    ("IN", "delhi"): {"city": "Delhi", "region": "Delhi"},
+    ("BD", "dhaka"): {"city": "Dhaka", "region": "Dhaka Division"},
+    ("NG", "lagos"): {"city": "Lagos", "region": "Lagos State"},
+    ("KE", "nairobi"): {"city": "Nairobi", "region": "Nairobi County"},
+    ("ZA", "johannesburg"): {"city": "Johannesburg", "region": "Gauteng"},
+    ("SA", "riyadh"): {"city": "Riyadh", "region": "Riyadh Province"},
+    ("TR", "istanbul"): {"city": "Istanbul", "region": "Istanbul Province"},
+    ("TR", "ankara"): {"city": "Ankara", "region": "Ankara Province"},
+    ("US", "new york"): {"city": "New York", "region": "New York"},
+    ("US", "los angeles"): {"city": "Los Angeles", "region": "California"},
+    ("CA", "toronto"): {"city": "Toronto", "region": "Ontario"},
+    ("AU", "sydney"): {"city": "Sydney", "region": "New South Wales"},
 }
 _postal_defaults = {
     ("ZM", "10101"): {"city": "Lusaka", "region": "Lusaka Province"},
@@ -43,21 +173,7 @@ _region_defaults = {
     "sétif": ("Algeria", "DZ", "Setif Province"),
     "\u0633\u0637\u064a\u0641": ("Algeria", "DZ", "Setif Province"),
 }
-_nationality_aliases = {
-    "maroc": "Moroccan",
-    "marocain": "Moroccan",
-    "marocaine": "Moroccan",
-    "moroccan": "Moroccan",
-    "pakistan": "Pakistani",
-    "pakistani": "Pakistani",
-    "zambia": "Zambian",
-    "zambian": "Zambian",
-    "algeria": "Algerian",
-    "algerie": "Algerian",
-    "algerian": "Algerian",
-    "egypt": "Egyptian",
-    "egyptian": "Egyptian",
-}
+_nationality_aliases.update({"marocain": "Moroccan", "marocaine": "Moroccan"})
 
 
 def fallback_id(path: Path, lines: List[str]) -> str:
@@ -141,6 +257,27 @@ def _calling_code_alias(value: Any) -> Tuple[str, str] | None:
     return _calling_country_codes.get(key)
 
 
+def _phone_calling_code_alias(value: Any) -> Tuple[str, str] | None:
+    digits = re.sub(r"\D+", "", str(value))
+    if not digits:
+        return None
+    for length in range(3, 1, -1):
+        match = _calling_country_codes.get(digits[:length])
+        if match:
+            return match
+    return None
+
+
+def _location_country(value: Any) -> Tuple[str, str] | None:
+    place = _place_key(value)
+    if not place:
+        return None
+    for country_code, default_place in _location_defaults:
+        if place == default_place:
+            return (_country_codes[country_code], country_code)
+    return None
+
+
 def _line_labeled_value(lines: List[str], labels: set[str]) -> str | None:
     for line in lines:
         match = _label_value_re.search(line)
@@ -210,6 +347,16 @@ def repair_profile(profile: Dict[str, Any], lines: List[str]) -> List[str]:
             address["country"], address["country_code"] = country
 
     if not address.get("country"):
+        for phone in profile["contact"]["phones"]:
+            if not isinstance(phone, dict):
+                continue
+            country = _phone_calling_code_alias(phone.get("number"))
+            if country:
+                address["country"], address["country_code"] = country
+                warnings.append("country_inferred_from_phone_code")
+                break
+
+    if not address.get("country"):
         region = _region_defaults.get(_place_key(address.get("region")))
         if region:
             address["country"], address["country_code"], address["region"] = region
@@ -255,13 +402,9 @@ def repair_profile(profile: Dict[str, Any], lines: List[str]) -> List[str]:
         if nationality:
             personal["nationality"] = nationality
         else:
-            place_country = _country_alias(personal.get("place_of_birth"))
-            place_defaults = _location_defaults.get(("EG", _place_key(personal.get("place_of_birth"))))
+            place_country = _country_alias(personal.get("place_of_birth")) or _location_country(personal.get("place_of_birth"))
             if place_country:
                 personal["nationality"] = _country_nationalities.get(place_country[1])
-                warnings.append("nationality_inferred_from_place")
-            elif place_defaults:
-                personal["nationality"] = _country_nationalities["EG"]
                 warnings.append("nationality_inferred_from_place")
             elif address.get("country_code") in _country_nationalities:
                 personal["nationality"] = _country_nationalities[address["country_code"]]

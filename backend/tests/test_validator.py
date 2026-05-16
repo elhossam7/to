@@ -190,3 +190,51 @@ def test_validate_profile_infers_egypt_from_suez_city(tmp_path: Path) -> None:
     assert profile["address"]["region"] == "Suez Governorate"
     assert profile["personal"]["nationality"] == "Egyptian"
     assert "country_inferred_from_city" in warnings
+
+
+def test_validate_profile_normalizes_common_country_to_nationality(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "personal": {"full_name": "Camille Durand", "nationality": None},
+            "address": {"city": "Paris", "country": "France", "country_code": None, "region": None},
+            "contact": {"emails": [{"address": "camille@example.fr"}]},
+        },
+        tmp_path / "source.txt",
+        ["city: Paris", "country: France"],
+    )
+
+    assert profile["address"]["country"] == "France"
+    assert profile["address"]["country_code"] == "FR"
+    assert profile["address"]["region"] == "Ile-de-France"
+    assert profile["personal"]["nationality"] == "French"
+    assert "nationality_inferred_from_country" in warnings
+
+
+def test_validate_profile_infers_country_and_nationality_from_phone_code(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "personal": {"full_name": "Amina Hassan", "nationality": None},
+            "contact": {"phones": [{"number": "+212 612 345 678"}]},
+        },
+        tmp_path / "source.txt",
+        ["phone: +212 612 345 678"],
+    )
+
+    assert profile["address"]["country"] == "Morocco"
+    assert profile["address"]["country_code"] == "MA"
+    assert profile["personal"]["nationality"] == "Moroccan"
+    assert "country_inferred_from_phone_code" in warnings
+
+
+def test_validate_profile_infers_nationality_from_place_for_common_city(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "personal": {"full_name": "Oliver Smith", "place_of_birth": "London", "nationality": None},
+            "contact": {"emails": [{"address": "oliver@example.co.uk"}]},
+        },
+        tmp_path / "source.txt",
+        ["place of birth: London"],
+    )
+
+    assert profile["personal"]["nationality"] == "British"
+    assert "nationality_inferred_from_place" in warnings

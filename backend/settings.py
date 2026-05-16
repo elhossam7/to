@@ -31,7 +31,8 @@ class Settings(BaseSettings):
         default=(
             "Be strict and evidence-based. Return JSON only. Normalize geography when unambiguous from visible "
             "city, region, postal code, phone/calling code, or country code. country_code must be ISO alpha-2, "
-            "not a phone code. Fill nationality from a confident country/place signal when blank and not conflicting. "
+            "not a phone code. Apply geography/nationality inference globally: fill nationality from a confident "
+            "country/place/address signal when blank and not conflicting. "
             "Never place country/city/region/postal data or nested objects in street."
         ),
         alias="EXTRACTION_RULES",
