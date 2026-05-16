@@ -29,3 +29,31 @@ def test_validate_profile_uses_stable_full_name_id(tmp_path: Path) -> None:
 def test_validate_profile_rejects_empty_envelope(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         validate_profile({"id": "abc"}, tmp_path / "source.txt", ["abc"])
+
+
+def test_validate_profile_moves_country_out_of_street(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "personal": {"first_name": "Soufiane", "last_name": "Elkasmi"},
+            "address": {"street": "maroc", "city": "tanger", "postal_code": "90080"},
+            "contact": {"emails": [{"address": "sfyankasmi@gmail.com"}]},
+        },
+        tmp_path / "source.txt",
+        ["Name: soufiane elkasmi", "City: tanger", "Country: maroc"],
+    )
+
+    assert profile["address"]["street"] is None
+    assert profile["address"]["country"] == "Morocco"
+    assert profile["address"]["country_code"] == "MA"
+    assert "country_moved_from_address_street" in warnings
+
+
+def test_validate_profile_normalizes_labeled_nationality(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {"personal": {"first_name": "Soufiane"}, "contact": {"emails": [{"address": "sfyankasmi@gmail.com"}]}},
+        tmp_path / "source.txt",
+        ["nationality: maroc"],
+    )
+
+    assert profile["personal"]["nationality"] == "Moroccan"
+    assert warnings == []

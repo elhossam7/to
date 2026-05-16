@@ -9,6 +9,20 @@ from backend.pipeline.schema import has_visible_data, normalize_profile
 
 
 _safe_name_re = re.compile(r"[^a-zA-Z0-9_.-]+")
+_label_value_re = re.compile(r"\b(?P<label>nationality|nationalite|nationalit[eé]|country|pays)\b\s*[:=-]?\s*(?P<value>.+)", re.IGNORECASE)
+_country_aliases = {
+    "ma": ("Morocco", "MA"),
+    "maroc": ("Morocco", "MA"),
+    "morroco": ("Morocco", "MA"),
+    "morocco": ("Morocco", "MA"),
+    "marruecos": ("Morocco", "MA"),
+}
+_nationality_aliases = {
+    "maroc": "Moroccan",
+    "marocain": "Moroccan",
+    "marocaine": "Moroccan",
+    "moroccan": "Moroccan",
+}
 
 
 def fallback_id(path: Path, lines: List[str]) -> str:
@@ -69,6 +83,72 @@ def _slug(value: str) -> str:
     return cleaned or "unknown"
 
 
+def _alias_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value).strip().lower()).strip()
+
+
+def _country_alias(value: Any) -> Tuple[str, str] | None:
+    key = _alias_key(value)
+    return _country_aliases.get(key)
+
+
+def _nationality_alias(value: Any) -> str | None:
+    key = _alias_key(value)
+    return _nationality_aliases.get(key)
+
+
+def _line_labeled_value(lines: List[str], labels: set[str]) -> str | None:
+    for line in lines:
+        match = _label_value_re.search(line)
+        if not match:
+            continue
+        label = _alias_key(match.group("label"))
+        if label in labels:
+            return match.group("value").strip()
+    return None
+
+
+def repair_profile(profile: Dict[str, Any], lines: List[str]) -> List[str]:
+    warnings: List[str] = []
+    address = profile["address"]
+    personal = profile["personal"]
+
+    country = _country_alias(address.get("country"))
+    if country:
+        address["country"], address["country_code"] = country
+    elif isinstance(address.get("country_code"), str) and address["country_code"].strip().upper() == "MA":
+        address["country"] = address.get("country") or "Morocco"
+        address["country_code"] = "MA"
+
+    if not address.get("country"):
+        labeled_country = _line_labeled_value(lines, {"country", "pays"})
+        country = _country_alias(labeled_country) if labeled_country else None
+        if country:
+            address["country"], address["country_code"] = country
+
+    for field in ("street", "city", "region"):
+        country = _country_alias(address.get(field))
+        if not country:
+            continue
+        if not address.get("country"):
+            address["country"], address["country_code"] = country
+        elif not address.get("country_code"):
+            address["country_code"] = country[1]
+        address[field] = None
+        warnings.append(f"country_moved_from_address_{field}")
+
+    nationality = _nationality_alias(personal.get("nationality"))
+    if nationality:
+        personal["nationality"] = nationality
+    elif not personal.get("nationality"):
+        labeled_nationality = _line_labeled_value(lines, {"nationality", "nationalite"})
+        nationality = _nationality_alias(labeled_nationality) if labeled_nationality else None
+        if nationality:
+            personal["nationality"] = nationality
+
+    return warnings
+
+
 def validate_profile(data: Any, path: Path, lines: List[str]) -> Tuple[Dict[str, Any], List[str]]:
     if not isinstance(data, dict):
         raise ValueError("Ollama response must be a JSON object")
@@ -76,6 +156,7 @@ def validate_profile(data: Any, path: Path, lines: List[str]) -> Tuple[Dict[str,
     warnings: List[str] = []
     supplied_id = data.get("id")
     profile = normalize_profile(data)
+    warnings.extend(repair_profile(profile, lines))
     if isinstance(supplied_id, (str, int)) and str(supplied_id).strip():
         profile["id"] = str(supplied_id).strip()
         profile["_id_strategy"] = "model_id"

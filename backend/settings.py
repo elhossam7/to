@@ -30,7 +30,8 @@ class Settings(BaseSettings):
     extraction_rules: str = Field(
         default=(
             "Extract only visible personal profile information from the raw text. Return JSON only. "
-            "Do not add keys outside the schema. Use null or empty arrays for fields that are not visible."
+            "Do not add keys outside the schema. Use null or empty arrays for fields that are not visible. "
+            "Never put a country name such as Maroc or Morocco in street; use address.country and address.country_code."
         ),
         alias="EXTRACTION_RULES",
     )

@@ -9,7 +9,7 @@ from backend.pipeline.ollama import call_ollama
 from backend.pipeline.parser import read_lines
 from backend.pipeline.jobs import ProcessingJob
 from backend.pipeline.schema import normalize_profile
-from backend.pipeline.validator import validate_profile
+from backend.pipeline.validator import repair_profile, validate_profile
 from backend.storage import append_audit, load_profile, save_profile, utc_now
 
 
@@ -60,6 +60,19 @@ async def _extract_profile_from_documents(
     if len(documents) == 1:
         result = await call_ollama(documents)
         return validate_profile(result, job.paths[0], all_lines)
+
+    try:
+        result = await call_ollama(documents)
+        return validate_profile(result, job.paths[0], all_lines)
+    except Exception as exc:
+        append_audit(
+            {
+                "event": "batch_combined_error",
+                "batch_id": job.batch_id,
+                "paths": [str(path) for path in job.paths],
+                "error": str(exc) or exc.__class__.__name__,
+            }
+        )
 
     merged: Dict[str, Any] | None = None
     warnings: List[str] = []
@@ -130,6 +143,8 @@ async def process_job(job: ProcessingJob, broadcaster: Broadcaster) -> Dict[str,
 
     existing = load_profile(profile["id"])
     profile = _merge_profile(existing, profile)
+    warnings.extend(repair_profile(profile, all_lines))
+    warnings = list(dict.fromkeys(warnings))
     saved_path = save_profile(profile["id"], profile)
 
     done = {
