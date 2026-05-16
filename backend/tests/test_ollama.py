@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from backend.pipeline.ollama import OllamaHTTPError, call_ollama, is_non_recoverable_ollama_error
+from backend.pipeline.ollama import OllamaHTTPError, _extract_json, call_ollama, is_non_recoverable_ollama_error
 from backend.settings import settings
 
 
@@ -68,3 +68,18 @@ async def test_call_ollama_does_not_retry_usage_limit_errors(monkeypatch: pytest
 
 def test_ollama_http_429_is_non_recoverable() -> None:
     assert is_non_recoverable_ollama_error(OllamaHTTPError(429, "usage limit"))
+
+
+def test_extract_json_repairs_missing_comma_before_next_key() -> None:
+    result = _extract_json(
+        '{"personal":{"full_name":"Manar Asem Hussien" "nationality":"Egyptian"},"address":{"country":"Egypt"}}'
+    )
+
+    assert result["personal"]["full_name"] == "Manar Asem Hussien"
+    assert result["personal"]["nationality"] == "Egyptian"
+
+
+def test_extract_json_accepts_python_style_dict_when_model_ignores_json_format() -> None:
+    result = _extract_json("{'personal': {'full_name': 'Ada Lovelace', 'nationality': None}}")
+
+    assert result == {"personal": {"full_name": "Ada Lovelace", "nationality": None}}

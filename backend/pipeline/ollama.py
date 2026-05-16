@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import json
 import re
 from typing import Any, AsyncIterator, Dict, List, Sequence, Tuple
@@ -100,18 +101,49 @@ def _extract_json(text: str) -> Dict[str, Any]:
         stripped = stripped.strip("`")
         stripped = stripped.removeprefix("json").strip()
 
-    try:
-        parsed = json.loads(stripped)
-    except json.JSONDecodeError:
-        start = stripped.find("{")
-        end = stripped.rfind("}")
-        if start == -1 or end == -1 or end <= start:
-            raise
-        parsed = json.loads(stripped[start : end + 1])
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    candidates = [stripped]
+    if start != -1 and end > start:
+        candidates.append(stripped[start : end + 1])
 
-    if not isinstance(parsed, dict):
-        raise ValueError("response JSON is not an object")
-    return parsed
+    last_error: Exception | None = None
+    for candidate in candidates:
+        for repaired in (candidate, _repair_json_text(candidate)):
+            try:
+                parsed = json.loads(repaired, strict=False)
+            except json.JSONDecodeError as exc:
+                last_error = exc
+                continue
+            if not isinstance(parsed, dict):
+                raise ValueError("response JSON is not an object")
+            return parsed
+
+    for candidate in candidates:
+        try:
+            parsed = ast.literal_eval(candidate)
+        except (SyntaxError, ValueError) as exc:
+            last_error = exc
+            continue
+        if not isinstance(parsed, dict):
+            raise ValueError("response JSON is not an object")
+        return parsed
+
+    if last_error:
+        raise last_error
+    raise ValueError("response JSON is not an object")
+
+
+def _repair_json_text(text: str) -> str:
+    repaired = text.strip()
+    repaired = re.sub(r",\s*([}\]])", r"\1", repaired)
+    repaired = re.sub(
+        r'(?P<value>"(?:[^"\\]|\\.)*"|[}\]]|-?\d+(?:\.\d+)?|true|false|null)\s+(?="[^"\n\r]+?"\s*:)',
+        r"\g<value>, ",
+        repaired,
+        flags=re.IGNORECASE,
+    )
+    return repaired
 
 
 async def call_ollama(documents: Sequence[Tuple[str, List[str]]]) -> Dict[str, Any]:
