@@ -23,12 +23,17 @@ _country_aliases = {
     "dz": ("Algeria", "DZ"),
     "algeria": ("Algeria", "DZ"),
     "algerie": ("Algeria", "DZ"),
+    "eg": ("Egypt", "EG"),
+    "egypt": ("Egypt", "EG"),
 }
-_country_codes = {"MA": "Morocco", "PK": "Pakistan", "ZM": "Zambia", "DZ": "Algeria"}
+_country_codes = {"MA": "Morocco", "PK": "Pakistan", "ZM": "Zambia", "DZ": "Algeria", "EG": "Egypt"}
+_country_nationalities = {"MA": "Moroccan", "PK": "Pakistani", "ZM": "Zambian", "DZ": "Algerian", "EG": "Egyptian"}
 _calling_country_codes = {"260": ("Zambia", "ZM")}
 _location_defaults = {
     ("ZM", "lusaka"): {"city": "Lusaka", "region": "Lusaka Province"},
     ("DZ", "el eulma"): {"city": "El Eulma", "region": "Setif Province"},
+    ("EG", "suez"): {"city": "Suez", "region": "Suez Governorate"},
+    ("EG", "mansoura"): {"city": "Mansoura", "region": "Dakahlia Governorate"},
 }
 _postal_defaults = {
     ("ZM", "10101"): {"city": "Lusaka", "region": "Lusaka Province"},
@@ -50,6 +55,8 @@ _nationality_aliases = {
     "algeria": "Algerian",
     "algerie": "Algerian",
     "algerian": "Algerian",
+    "egypt": "Egyptian",
+    "egyptian": "Egyptian",
 }
 
 
@@ -247,6 +254,18 @@ def repair_profile(profile: Dict[str, Any], lines: List[str]) -> List[str]:
         nationality = _nationality_alias(labeled_nationality) if labeled_nationality else None
         if nationality:
             personal["nationality"] = nationality
+        else:
+            place_country = _country_alias(personal.get("place_of_birth"))
+            place_defaults = _location_defaults.get(("EG", _place_key(personal.get("place_of_birth"))))
+            if place_country:
+                personal["nationality"] = _country_nationalities.get(place_country[1])
+                warnings.append("nationality_inferred_from_place")
+            elif place_defaults:
+                personal["nationality"] = _country_nationalities["EG"]
+                warnings.append("nationality_inferred_from_place")
+            elif address.get("country_code") in _country_nationalities:
+                personal["nationality"] = _country_nationalities[address["country_code"]]
+                warnings.append("nationality_inferred_from_country")
 
     return warnings
 

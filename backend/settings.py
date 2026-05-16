@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     ollama_stream: bool = Field(default=True, alias="OLLAMA_STREAM")
     ollama_num_predict: int = Field(default=600, alias="OLLAMA_NUM_PREDICT")
     ollama_num_ctx: int = Field(default=4096, alias="OLLAMA_NUM_CTX")
-    prompt_max_lines_per_doc: int = Field(default=80, alias="PROMPT_MAX_LINES_PER_DOC")
-    prompt_max_chars: int = Field(default=6000, alias="PROMPT_MAX_CHARS")
+    prompt_max_lines_per_doc: int = Field(default=60, alias="PROMPT_MAX_LINES_PER_DOC")
+    prompt_max_chars: int = Field(default=4500, alias="PROMPT_MAX_CHARS")
     max_retries: int = Field(default=2, alias="MAX_RETRIES")
     max_file_size: int = Field(default=1_000_000, alias="MAX_FILE_SIZE")
     cors_origin: str = Field(default="http://localhost:5173", alias="CORS_ORIGIN")
@@ -31,7 +31,8 @@ class Settings(BaseSettings):
         default=(
             "Be strict and evidence-based. Return JSON only. Normalize geography when unambiguous from visible "
             "city, region, postal code, phone/calling code, or country code. country_code must be ISO alpha-2, "
-            "not a phone code. Never place country/city/region/postal data or nested objects in street."
+            "not a phone code. Fill nationality from a confident country/place signal when blank and not conflicting. "
+            "Never place country/city/region/postal data or nested objects in street."
         ),
         alias="EXTRACTION_RULES",
     )

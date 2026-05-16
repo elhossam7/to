@@ -18,57 +18,19 @@ _signal_re = re.compile(
     re.IGNORECASE,
 )
 _non_recoverable_http_statuses = {401, 403, 404, 429}
-EXTRACTION_ENGINE_PROMPT = """You are a strict profile extraction engine for noisy browser/export text.
+EXTRACTION_ENGINE_PROMPT = """You extract one person profile from noisy browser/export text.
 
-Your output contract:
-- Return exactly one raw JSON object. No markdown, no prose, no comments, no code fences.
-- Use exactly the schema keys provided below. Do not invent new top-level keys or nested user-data keys.
-- Scalar fields must be a string, number, or null. Never put an object, array, dictionary dump, or JSON string inside a scalar field.
-- List fields must be arrays. Use [] when empty.
-- Use null only when the value cannot be determined from visible evidence or an unambiguous geographic/phone-code inference.
-- Do not include placeholder text like unknown, N/A, none, null, not provided, or empty strings.
+Output exactly one raw JSON object: no markdown, no prose, no code fences. Use only the schema keys. Scalars must be string/number/null; never put objects, arrays, dictionary dumps, or JSON strings inside scalar fields. Lists must be arrays. No placeholders such as unknown, N/A, none, null, or empty strings.
 
-Evidence discipline:
-- Extract values visible in the source text.
-- You may normalize formatting when the meaning is unchanged: trim whitespace, normalize email casing, normalize country names, and normalize ISO country codes.
-- You may infer country, country_code, and region from visible city, region, postal code, phone/calling code, or country code only when the mapping is unambiguous.
-- Never infer private personal facts such as date_of_birth, age, nationality, national_id, or phone number unless they are visible or directly labeled.
-- Nationality is not the same as address country. Only fill nationality when it is visible or explicitly labeled as nationality/nationalite.
-- If multiple documents are present, treat them as evidence for the same person and merge complementary facts.
-- If values conflict, prefer the most specific and clearly labeled value. If conflict cannot be resolved, keep the safer visible value and leave uncertain fields null.
+Evidence and merge rules: use visible source values, plus only unambiguous geography/phone-code inference. Treat all documents as the same person and merge complementary facts. Resolve conflicts by preferring clearly labeled, specific values; otherwise leave uncertain fields null.
 
-Identity rules:
-- full_name should be the person's real full name when visible. Do not use an email username as full_name unless it is clearly presented as a name.
-- first_name and last_name should come from a visible name when possible. If only full_name is visible and it clearly has name parts, split conservatively.
-- national_id should contain document ID / national ID / passport / identity-number values only, not phone numbers, postal codes, or account IDs.
+Identity rules: full_name is the real person name when visible, not an email username unless clearly used as a name. Split first/last name only when obvious. national_id is only ID/passport/national-document data, not phone, postal, or account IDs.
 
-Address and geography rules:
-- street is only the street/address line. Never put a country, city, region, postal code, phone code, or a nested address object in street.
-- city is the locality/city/town.
-- region is the state/province/governorate/wilaya/department/administrative region.
-- country is the normalized English country name, e.g. Morocco, Algeria, Zambia, Pakistan.
-- country_code is ISO 3166-1 alpha-2, e.g. MA, DZ, ZM, PK. It is not a telephone calling code.
-- If the source shows a telephone/calling code such as +260 or country_code 260, infer the country only if that calling code is unambiguous, and output ISO country_code, not 260.
-- If city/region/postal data clearly identifies a country or administrative region, fill the normalized country/country_code/region.
-- Examples: Lusaka + 10101 or calling code 260 implies Zambia / ZM and region Lusaka Province. El Eulma or Setif/Sétif/سطيف implies Algeria / DZ and region Setif Province. Karachi implies Pakistan / PK when it is clearly an address city.
-- Do not move country names into street. If a line is just Maroc/Morocco/Algeria/Zambia/Pakistan, it belongs in country, not street.
+Address/geography rules: street is only the street/address line. Never put country, city, region, postal code, phone code, or nested address objects in street. city is locality/town. region is state/province/governorate/wilaya. country is normalized English country name. country_code is ISO 3166-1 alpha-2, not a calling code. Infer country/country_code/region from city, region, postal code, phone/calling code, or country code when unambiguous. If nationality is blank and a country/place-of-birth signal clearly identifies the person's country, fill the matching nationality unless there is conflicting evidence.
 
-Contact rules:
-- Extract all visible emails. Deduplicate case-insensitively. The first visible email is primary unless the source labels another as primary.
-- Extract all visible phone numbers. Preserve a leading + and visible country code. Do not convert IDs or postal codes into phones.
-- Online profile fields should contain visible URLs or handles for the matching service only.
+Examples: +260 or country_code 260 -> Zambia/ZM; Lusaka + 10101 -> Lusaka Province, Zambia/ZM, Zambian. El Eulma or Setif/Arabic Setif -> Setif Province, Algeria/DZ, Algerian. Suez or Mansoura -> Egypt/EG, Egyptian. Karachi -> Pakistan/PK, Pakistani. Maroc/Morocco belongs in country, not street.
 
-Language rules:
-- Fill languages only when explicitly visible. Do not infer languages from country, name, or address.
-- Proficiency must be one of native, professional, intermediate, beginner, or null.
-
-Common mistakes to avoid:
-- Do not stringify nested objects into scalar fields.
-- Do not output malformed JSON.
-- Do not put city, country, region, or postal code in street.
-- Do not use phone calling codes as ISO country_code.
-- Do not confuse nationality with residence/address country.
-- Do not add extra keys outside the schema."""
+Contact/language rules: extract all visible emails and phones; deduplicate emails case-insensitively; first visible email is primary unless another is labeled primary. Preserve visible + phone codes. Do not turn IDs/postal codes into phones. Online profiles require visible matching URLs/handles. Languages only when explicit."""
 
 
 class OllamaHTTPError(RuntimeError):

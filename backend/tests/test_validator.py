@@ -150,3 +150,43 @@ def test_validate_profile_infers_algeria_from_el_eulma_city(tmp_path: Path) -> N
     assert profile["address"]["country_code"] == "DZ"
     assert profile["address"]["region"] == "Setif Province"
     assert "country_inferred_from_city" in warnings
+
+
+def test_validate_profile_infers_egyptian_nationality_from_egypt_address(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "personal": {
+                "full_name": "Manar Asem Hussien",
+                "date_of_birth": "2001-12-12",
+                "place_of_birth": "Mansoura",
+                "nationality": None,
+            },
+            "address": {"city": "Suez", "country": "Egypt", "country_code": "EG", "region": "Suez"},
+            "contact": {"emails": [{"address": "kokoelkholy12@gmail.com"}]},
+        },
+        tmp_path / "source.txt",
+        ["place of birth: Mansoura", "address: Suez, Egypt"],
+    )
+
+    assert profile["personal"]["nationality"] == "Egyptian"
+    assert profile["address"]["country"] == "Egypt"
+    assert profile["address"]["country_code"] == "EG"
+    assert "nationality_inferred_from_place" in warnings
+
+
+def test_validate_profile_infers_egypt_from_suez_city(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "personal": {"full_name": "Manar Asem Hussien", "nationality": None},
+            "address": {"city": "Suez", "country": None, "country_code": None, "region": None},
+            "contact": {"emails": [{"address": "kokoelkholy12@gmail.com"}]},
+        },
+        tmp_path / "source.txt",
+        ["city: Suez"],
+    )
+
+    assert profile["address"]["country"] == "Egypt"
+    assert profile["address"]["country_code"] == "EG"
+    assert profile["address"]["region"] == "Suez Governorate"
+    assert profile["personal"]["nationality"] == "Egyptian"
+    assert "country_inferred_from_city" in warnings
