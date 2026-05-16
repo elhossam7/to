@@ -29,11 +29,9 @@ class Settings(BaseSettings):
     cors_origin: str = Field(default="http://localhost:5173", alias="CORS_ORIGIN")
     extraction_rules: str = Field(
         default=(
-            "Extract only visible personal profile information from the raw text. Return JSON only. "
-            "Do not add keys outside the schema. Use null or empty arrays for fields that are not visible. "
-            "Infer country, country_code, and region from visible city, region, postal code, phone/calling code, "
-            "or country code only when the mapping is unambiguous. Never put a country name such as Maroc or "
-            "Morocco in street; use address.country and address.country_code."
+            "Be strict and evidence-based. Return JSON only. Normalize geography when unambiguous from visible "
+            "city, region, postal code, phone/calling code, or country code. country_code must be ISO alpha-2, "
+            "not a phone code. Never place country/city/region/postal data or nested objects in street."
         ),
         alias="EXTRACTION_RULES",
     )
