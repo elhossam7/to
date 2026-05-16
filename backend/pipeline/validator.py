@@ -18,8 +18,17 @@ _country_aliases = {
     "marruecos": ("Morocco", "MA"),
     "pk": ("Pakistan", "PK"),
     "pakistan": ("Pakistan", "PK"),
+    "zm": ("Zambia", "ZM"),
+    "zambia": ("Zambia", "ZM"),
 }
-_country_codes = {"MA": "Morocco", "PK": "Pakistan"}
+_country_codes = {"MA": "Morocco", "PK": "Pakistan", "ZM": "Zambia"}
+_calling_country_codes = {"260": ("Zambia", "ZM")}
+_location_defaults = {
+    ("ZM", "lusaka"): {"city": "Lusaka", "region": "Lusaka Province"},
+}
+_postal_defaults = {
+    ("ZM", "10101"): {"city": "Lusaka", "region": "Lusaka Province"},
+}
 _nationality_aliases = {
     "maroc": "Moroccan",
     "marocain": "Moroccan",
@@ -27,6 +36,8 @@ _nationality_aliases = {
     "moroccan": "Moroccan",
     "pakistan": "Pakistani",
     "pakistani": "Pakistani",
+    "zambia": "Zambian",
+    "zambian": "Zambian",
 }
 
 
@@ -102,6 +113,11 @@ def _nationality_alias(value: Any) -> str | None:
     return _nationality_aliases.get(key)
 
 
+def _calling_code_alias(value: Any) -> Tuple[str, str] | None:
+    key = re.sub(r"\D+", "", str(value))
+    return _calling_country_codes.get(key)
+
+
 def _line_labeled_value(lines: List[str], labels: set[str]) -> str | None:
     for line in lines:
         match = _label_value_re.search(line)
@@ -158,12 +174,37 @@ def repair_profile(profile: Dict[str, Any], lines: List[str]) -> List[str]:
         if code in _country_codes:
             address["country"] = address.get("country") or _country_codes[code]
             address["country_code"] = code
+        else:
+            calling_code = _calling_code_alias(code)
+            if calling_code:
+                address["country"], address["country_code"] = calling_code
+                warnings.append("country_code_normalized_from_calling_code")
 
     if not address.get("country"):
         labeled_country = _line_labeled_value(lines, {"country", "pays"})
         country = _country_alias(labeled_country) if labeled_country else None
         if country:
             address["country"], address["country_code"] = country
+
+    if not address.get("country"):
+        city = _alias_key(address.get("city"))
+        for (country_code, default_city), defaults in _location_defaults.items():
+            if city == default_city:
+                address["country"] = _country_codes[country_code]
+                address["country_code"] = country_code
+                warnings.append("country_inferred_from_city")
+                break
+
+    country_code = str(address.get("country_code") or "").upper()
+    city = _alias_key(address.get("city"))
+    postal_code = _alias_key(address.get("postal_code"))
+    defaults = _location_defaults.get((country_code, city)) or _postal_defaults.get((country_code, postal_code))
+    if defaults:
+        if not address.get("city"):
+            address["city"] = defaults["city"]
+        if not address.get("region"):
+            address["region"] = defaults["region"]
+            warnings.append("region_inferred_from_location")
 
     for field in ("street", "city", "region"):
         country = _country_alias(address.get(field))

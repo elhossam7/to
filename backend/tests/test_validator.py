@@ -77,3 +77,38 @@ def test_validate_profile_repairs_stringified_address_blob(tmp_path: Path) -> No
     assert profile["address"]["country"] == "Pakistan"
     assert profile["address"]["country_code"] == "PK"
     assert "address_blob_repaired" in warnings
+
+
+def test_validate_profile_normalizes_zambia_calling_code_and_lusaka_region(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "personal": {"full_name": "Justin Sikwese", "national_id": "349192-16-1"},
+            "address": {"city": "LUSAKA", "country": None, "country_code": "260", "postal_code": "10101"},
+            "contact": {"emails": [{"address": "Kasondexyz@gmail.com"}]},
+        },
+        tmp_path / "source.txt",
+        ["city: LUSAKA", "country code: 260", "postal code: 10101"],
+    )
+
+    assert profile["address"]["country"] == "Zambia"
+    assert profile["address"]["country_code"] == "ZM"
+    assert profile["address"]["region"] == "Lusaka Province"
+    assert "country_code_normalized_from_calling_code" in warnings
+    assert "region_inferred_from_location" in warnings
+
+
+def test_validate_profile_infers_zambia_from_lusaka_city(tmp_path: Path) -> None:
+    profile, warnings = validate_profile(
+        {
+            "personal": {"full_name": "Justin Sikwese"},
+            "address": {"city": "LUSAKA", "postal_code": "10101"},
+            "contact": {"emails": [{"address": "Kasondexyz@gmail.com"}]},
+        },
+        tmp_path / "source.txt",
+        ["city: LUSAKA", "postal code: 10101"],
+    )
+
+    assert profile["address"]["country"] == "Zambia"
+    assert profile["address"]["country_code"] == "ZM"
+    assert profile["address"]["region"] == "Lusaka Province"
+    assert "country_inferred_from_city" in warnings
